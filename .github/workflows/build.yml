@@ -58,6 +58,24 @@ jobs:
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
 
+    - name: Cache repo sync
+      uses: actions/cache@v4
+      with:
+        path: workspace
+        key: repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-${{ hashFiles('**/twrp.dependencies') }}
+        restore-keys: |
+          repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-
+          repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-
+
+    - name: Cache ccache
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ccache-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_number }}
+        restore-keys: |
+          ccache-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-
+          ccache-${{ github.event.inputs.MANIFEST_BRANCH }}-
+
     - name: Prepare the environment
       run: |
         sudo apt update
@@ -96,17 +114,18 @@ jobs:
     - name: Initialize repo
       id: pwd
       run: |
-        mkdir workspace
+        mkdir -p workspace
         cd workspace
         echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
         git config --global user.name "github-actions"
         git config --global user.email "actions@github.com"
-        repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-
-    - name: Repo Sync
-      run: |
-        repo sync -j$(nproc --all) --force-sync
-      working-directory: workspace
+        if [ ! -f .repo/manifest.xml ]; then
+          repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          repo sync -j$(nproc --all) --force-sync
+        else
+          echo "Repo workspace cached, skipping sync"
+          repo sync -j$(nproc --all) --force-sync --no-fetch
+        fi
 
     - name: Clone device tree
       run: |
@@ -140,9 +159,9 @@ jobs:
         export USE_CCACHE=1
         export CCACHE_COMPRESS=1
         export CCACHE_MAXSIZE=50G
+        export CCACHE_DIR=~/.ccache
         export TZ=Asia/Jakarta
         lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-eng
-        make clean
         make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
