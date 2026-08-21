@@ -61,11 +61,10 @@ jobs:
     - name: Cache repo sync
       uses: actions/cache@v4
       with:
-        path: workspace
-        key: repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-${{ hashFiles('**/twrp.dependencies') }}
+        path: workspace/.repo
+        key: repo-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.run_number }}
         restore-keys: |
-          repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-
-          repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-
+          repo-${{ github.event.inputs.MANIFEST_BRANCH }}-
 
     - name: Cache ccache
       uses: actions/cache@v4
@@ -119,12 +118,13 @@ jobs:
         echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
         git config --global user.name "github-actions"
         git config --global user.email "actions@github.com"
-        if [ ! -f .repo/manifest.xml ]; then
-          repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-          repo sync -j$(nproc --all) --force-sync
+        if [ -f .repo/manifest.xml ]; then
+          echo "Repo cached, quick sync..."
+          repo sync -j$(nproc --all) --force-sync --no-tags --optimized-fetch -q
         else
-          echo "Repo workspace cached, skipping sync"
-          repo sync -j$(nproc --all) --force-sync --no-fetch
+          echo "Fresh repo init + sync..."
+          repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          repo sync -j$(nproc --all) --force-sync --no-tags -q
         fi
 
     - name: Clone device tree
@@ -162,7 +162,7 @@ jobs:
         export CCACHE_MAXSIZE=50G
         export CCACHE_DIR=~/.ccache
         export TZ=Asia/Jakarta
-        lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-trunk_staging-eng
+        lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-ap2a-eng
         make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
