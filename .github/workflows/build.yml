@@ -174,6 +174,15 @@ jobs:
         -d parse_mode=html \
         -d disable_web_page_preview=true
 
+    - name: Send recovery to Telegram
+      run: |
+        cd ${{ steps.pwd.outputs.workspace-folder }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}
+        zip -j recovery.zip ${{ github.event.inputs.BUILD_TARGET }}.img
+        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendDocument" \
+        -F chat_id="${{ secrets.TG_CHAT_ID }}" \
+        -F document="@recovery.zip" \
+        -F caption="${{ github.event.inputs.DEVICE_NAME }}_${{ github.event.inputs.BUILD_TARGET }}_${{ github.run_id }}.zip"
+
     - name: Upload to Release
       uses: softprops/action-gh-release@v2
       with:
