@@ -16,12 +16,12 @@ on:
       MANIFEST_BRANCH:
         description: MANIFEST_BRANCH
         required: true
-        default: twrp-12.1
+        default: twrp-11
         type: choice
         options:
+        - twrp-11
         - twrp-12.1
         - twrp-14.1
-        - twrp-11
         - shrp-12.1
         - v3_11.0
         - v3_10.0
@@ -53,7 +53,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Check Out
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
@@ -155,7 +155,7 @@ jobs:
         -d disable_web_page_preview=true
 
     - name: Upload to Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/${{ github.event.inputs.BUILD_TARGET }}.img
