@@ -130,7 +130,7 @@ jobs:
     - name: Clone device tree
       run: |
         rm -rf ./device/realme/even
-        git clone https://github.com/rjfahad/twrp_realme_even_a11.git -b twrp-11 ./device/realme/even
+        git clone ${{ github.server_url }}/${{ github.repository }} -b ${{ github.ref_name }} ./device/realme/even
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
     - name: Check Build Tree
