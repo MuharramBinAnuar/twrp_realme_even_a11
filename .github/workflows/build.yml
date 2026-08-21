@@ -162,7 +162,7 @@ jobs:
         export CCACHE_MAXSIZE=50G
         export CCACHE_DIR=~/.ccache
         export TZ=Asia/Jakarta
-        lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-eng
+        lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-trunk_staging-eng
         make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
