@@ -16,7 +16,7 @@ on:
       MANIFEST_BRANCH:
         description: MANIFEST_BRANCH
         required: true
-        default: twrp-11
+        default: twrp-12.1
         type: choice
         options:
         - twrp-11
@@ -129,7 +129,8 @@ jobs:
 
     - name: Clone device tree
       run: |
-        git clone ${{ github.server_url }}/${{ github.repository }} -b ${{ github.ref_name }} ./device/realme/even
+        rm -rf ./device/realme/even
+        git clone https://github.com/rjfahad/twrp_realme_even_a11.git -b twrp-11 ./device/realme/even
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
     - name: Check Build Tree
