@@ -161,6 +161,12 @@ jobs:
         sed -i 's/android\.security\.maintenance-ndk_platform/android.security.maintenance-ndk/g' bootable/recovery/Android.mk bootable/recovery/libtar/Android.mk || true
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
+    - name: Patch libtar fscrypt API and FDE removal
+      run: |
+        cd bootable/recovery
+        patch -p1 < ${{ steps.pwd.outputs.workspace-folder }}/device/realme/even/patches/001-fix-libtar-fscrypt.patch
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+
     - name: Building recovery
       run: |
         source build/envsetup.sh

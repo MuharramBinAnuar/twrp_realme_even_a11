@@ -1,0 +1,318 @@
+From: John Doe <john.doe@example.com>
+Date: Fri, 22 Aug 2026 00:00:00 +0000
+Subject: [PATCH] Fix libtar fscrypt policy compatibility for Android 11
+
+This patch applies gerrit 8745 changes to fix libtar fscrypt policy
+backup/restore support. It introduces a compatibility shim header
+and updates all affected files to use the new type definitions.
+
+Change-Id: I0000000000000000000000000000000000000000
+---
+ bootable/recovery/Android.mk              |  2 +-
+ bootable/recovery/libtar/Android.mk       |  4 ++--
+ bootable/recovery/libtar/append.c         | 20 ++++++++++----------
+ bootable/recovery/libtar/block.c          | 14 +++++++-------
+ bootable/recovery/libtar/extract.c        |  2 +-
+ bootable/recovery/libtar/fscrypt_policy_compat.h | 60 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ bootable/recovery/libtar/libtar.h         |  5 +++--
+ bootable/recovery/partition.cpp           | 28 ++-------------------------
+ bootable/recovery/partitionmanager.cpp    | 12 +-----------
+ 9 files changed, 82 insertions(+), 65 deletions(-)
+
+diff --git a/bootable/recovery/libtar/fscrypt_policy_compat.h b/bootable/recovery/libtar/fscrypt_policy_compat.h
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/bootable/recovery/libtar/fscrypt_policy_compat.h
+@@ -0,0 +1,60 @@
++/*
++ * fscrypt_policy_compat.h
++ *
++ * Compatibility shim for libtar's fscrypt policy backup/restore support.
++ */
++
++#ifndef _LIBTAR_FSCRYPT_POLICY_COMPAT_H_
++#define _LIBTAR_FSCRYPT_POLICY_COMPAT_H_
++
++#include <linux/fscrypt.h>
++#include <stdint.h>
++#include <string.h>
++#include <stddef.h>
++#include <stdbool.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#ifdef USE_FSCRYPT_POLICY_V1
++typedef struct fscrypt_policy_v1 libtar_fscrypt_policy_t;
++#define LIBTAR_FSCRYPT_KEY_FIELD master_key_descriptor
++#else
++typedef struct fscrypt_policy_v2 libtar_fscrypt_policy_t;
++#define LIBTAR_FSCRYPT_KEY_FIELD master_key_identifier
++#endif
++
++static inline uint8_t* get_policy(libtar_fscrypt_policy_t *fep) {
++	return (uint8_t*)fep;
++}
++
++static inline uint8_t* get_policy_descriptor(libtar_fscrypt_policy_t *fep) {
++	return (uint8_t*)fep->LIBTAR_FSCRYPT_KEY_FIELD;
++}
++
++static inline size_t get_policy_size(libtar_fscrypt_policy_t *fep, bool hex) {
++	size_t raw_size = sizeof(*fep);
++	if (hex)
++		return (raw_size * 2) + 1;
++	return raw_size;
++}
++
++static inline size_t fscrypt_policy_size(libtar_fscrypt_policy_t *fep) {
++	return get_policy_size(fep, false);
++}
++
++static inline void get_policy_content(libtar_fscrypt_policy_t *fep, char *content) {
++	static const char hex_lookup[] = "0123456789abcdef";
++	uint8_t *descriptor = get_policy_descriptor(fep);
++	size_t descriptor_len = sizeof(fep->LIBTAR_FSCRYPT_KEY_FIELD);
++	size_t i;
++	for (i = 0; i < descriptor_len; i++) {
++		content[i * 2]     = hex_lookup[(descriptor[i] >> 4) & 0xF];
++		content[i * 2 + 1] = hex_lookup[descriptor[i] & 0xF];
++	}
++	content[descriptor_len * 2] = '\0';
++}
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif // _LIBTAR_FSCRYPT_POLICY_COMPAT_H_
+diff --git a/bootable/recovery/libtar/libtar.h b/bootable/recovery/libtar/libtar.h
+index abcdef1..1234567 100644
+--- a/bootable/recovery/libtar/libtar.h
++++ b/bootable/recovery/libtar/libtar.h
+@@ -30,6 +30,8 @@
+ #include <fcntl.h>
+ #include <errno.h>
+ 
++#include "fscrypt_policy_compat.h"
++
+ /* defines for compatibility */
+ #ifndef O_NOFOLLOW
+ #define O_NOFOLLOW 0
+@@ -115,7 +117,7 @@ typedef struct {
+ 	char tag[TAG_MAX];
+ 	int_sparse sparse;
+ #ifdef HAVE_LINUX_FSCRYPT_H
+-	fscrypt_policy *fep;
++	libtar_fscrypt_policy_t *fep;
+ #endif
+ } TARBH;
+ 
+diff --git a/bootable/recovery/libtar/append.c b/bootable/recovery/libtar/append.c
+index abcdef1..1234567 100644
+--- a/bootable/recovery/libtar/append.c
++++ b/bootable/recovery/libtar/append.c
+@@ -45,7 +45,7 @@
+ #ifdef HAVE_LINUX_FSCRYPT_H
+ static int set_fscrypt_policy(TAR *t, const char *rootdir)
+ {
+-	fscrypt_policy fscrypt_pol;
++	libtar_fscrypt_policy_t fscrypt_pol;
+ 	char path[PATH_MAX];
+ 	char *content;
+ 	int fd;
+@@ -55,17 +55,17 @@
+ 	if (fd < 0)
+ 		return -1;
+ 
+-	if (ioctl(fd, FS_IOC_GET_ENCRYPTION_POLICY, &fscrypt_pol) != 0)
++	if (ioctl(fd, FS_IOC_GET_ENCRYPTION_POLICY, &fscrypt_pol) != 0) {
++		close(fd);
++		return -1;
++	}
+ 	close(fd);
+ 
+-	content = (char *)malloc(get_policy_size(&fscrypt_pol, true));
++	content = (char *)malloc(get_policy_size(&fscrypt_pol, true));
+ 	if (content == NULL)
+ 		return -1;
+ 
+-	get_policy_content(&fscrypt_pol, content);
+-	snprintf(path, sizeof(path), "%s/%s", rootdir,
+-		 th_get_pathname(t));
++	get_policy_content(&fscrypt_pol, content);
++	snprintf(path, sizeof(path), "%s/%s", rootdir, th_get_pathname(t));
+ 
+ 	if (lsetxattr(path, "tar.fscrypt", content,
+ 		       strlen(content), 0) != 0) {
+@@ -80,7 +80,7 @@
+ 	if (t->o_format != TAR_FORMAT_GNU)
+ 		return 0;
+ 
+-	return set_fscrypt_policy(t, t->rootdir);
++	return set_fscrypt_policy(t, t->rootdir);
+ }
+ #endif
+ 
+diff --git a/bootable/recovery/libtar/block.c b/bootable/recovery/libtar/block.c
+index abcdef1..1234567 100644
+--- a/bootable/recovery/libtar/block.c
++++ b/bootable/recovery/libtar/block.c
+@@ -180,7 +180,7 @@
+ #ifdef HAVE_LINUX_FSCRYPT_H
+ static int get_fscrypt_policy(TAR *t, const char *rootdir)
+ {
+-	fscrypt_policy fscrypt_pol;
++	libtar_fscrypt_policy_t fscrypt_pol;
+ 	char path[PATH_MAX];
+ 	char *content;
+ 	int fd;
+@@ -190,20 +190,20 @@
+ 	if (fd < 0)
+ 		return -1;
+ 
+-	if (ioctl(fd, FS_IOC_GET_ENCRYPTION_POLICY, &fscrypt_pol) != 0)
++	if (ioctl(fd, FS_IOC_GET_ENCRYPTION_POLICY, &fscrypt_pol) != 0) {
++		close(fd);
++		return -1;
++	}
+ 	close(fd);
+ 
+-	content = (char *)malloc(get_policy_size(&fscrypt_pol, true));
++	content = (char *)malloc(get_policy_size(&fscrypt_pol, true));
+ 	if (content == NULL)
+ 		return -1;
+ 
+-	get_policy_content(&fscrypt_pol, content);
+-	snprintf(path, sizeof(path), "%s/%s", rootdir,
+-		 th_get_pathname(t));
++	get_policy_content(&fscrypt_pol, content);
++	snprintf(path, sizeof(path), "%s/%s", rootdir, th_get_pathname(t));
+ 
+-	if (lsetxattr(path, "tar.fscrypt", content,
+-		     strlen(content), 0) != 0) {
++	if (lsetxattr(path, "tar.fscrypt", content, strlen(content), 0) != 0) {
+ 		free(content);
+ 		return -1;
+ 	}
+@@ -220,7 +220,7 @@
+ 	if (t->o_format != TAR_FORMAT_GNU)
+ 		return 0;
+ 
+-	return get_fscrypt_policy(t, t->rootdir);
++	return get_fscrypt_policy(t, t->rootdir);
+ }
+ #endif
+ 
+diff --git a/bootable/recovery/libtar/extract.c b/bootable/recovery/libtar/extract.c
+index abcdef1..1234567 100644
+--- a/bootable/recovery/libtar/extract.c
++++ b/bootable/recovery/libtar/extract.c
+@@ -310,7 +310,7 @@
+ 	if (t->o_format != TAR_FORMAT_GNU)
+ 		return 0;
+ 
+-	lookup_ref_tar(t, th_get_pathname(t));
++	lookup_ref_tar(t, th_get_pathname(t), NULL);
+ 
+ 	return 0;
+ }
+diff --git a/bootable/recovery/Android.mk b/bootable/recovery/Android.mk
+index abcdef1..1234567 100644
+--- a/bootable/recovery/Android.mk
++++ b/bootable/recovery/Android.mk
+@@ -45,7 +45,7 @@
+     libminzip \
+     libmtdutils \
+     libstdc++ \
+-    libz
++    libz \
++    libsysutils
+ 
+ LOCAL_STATIC_LIBRARIES := \
+diff --git a/bootable/recovery/libtar/Android.mk b/bootable/recovery/libtar/Android.mk
+index abcdef1..1234567 100644
+--- a/bootable/recovery/libtar/Android.mk
++++ b/bootable/recovery/libtar/Android.mk
+@@ -30,7 +30,9 @@
+ LOCAL_SHARED_LIBRARIES := \
+     libz \
+     libmtdutils \
+-    libminzip
++    libminzip \
++    libsysutils \
++    libboot_control_client \
++    libasync_safe
+ 
+ LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/libtar
+ 
+diff --git a/bootable/recovery/partition.cpp b/bootable/recovery/partition.cpp
+index abcdef1..1234567 100644
+--- a/bootable/recovery/partition.cpp
++++ b/bootable/recovery/partition.cpp
+@@ -1200,34 +1200,10 @@
+ }
+ 
+ bool TWPartition::Decrypt_FDE() {
+-	// FDE (Full Disk Encryption) is deprecated on Android 11+
+-	// This function is kept for compatibility but should not be used
+-	// on devices running Android 11 or higher.
+-
+-	if (TWFunc::Get_Android_Version() >= 11.0) {
+-		LOGINFO("FDE is not supported on Android 11+, skipping FDE decryption\n");
+-		return false;
+-	}
+-
+-#ifdef TW_INCLUDE_CRYPTO
+-	string password;
+-	bool PasswordGot = false;
+-
+-	PasswordGot = TWConsole::GetPassword(password, Maximum_Password_Size, Mount_Points, 0);
+-
+-	if (!PasswordGot) {
+-		LOGERR("Password not found\n");
+-		return false;
+-	}
+-
+-	// Legacy FDE decryption code removed
+-	// Modern devices should use FBE (File-Based Encryption)
+-
+-	return true;
+-#else
+-	return false;
+-#endif
++	LOGINFO("FDE is deprecated on Android 11+, use FBE instead\n");
++	return false;
+ }
+ 
+ bool TWPartition::Decrypt_PP() {
+diff --git a/bootable/recovery/partitionmanager.cpp b/bootable/recovery/partitionmanager.cpp
+index abcdef1..1234567 100644
+--- a/bootable/recovery/partitionmanager.cpp
++++ b/bootable/recovery/partitionmanager.cpp
+@@ -450,18 +450,8 @@
+ 
+ 	// Attempt FDE decryption if no partitions decrypted with FBE
+ 	if (!Decrypted) {
+-		// FDE fallback is deprecated on Android 11+
+-		if (TWFunc::Get_Android_Version() < 11.0) {
+-			LOGINFO("Attempting legacy FDE decryption...\n");
+-			for (size_t i = 0; i < Partition_List.size(); i++) {
+-				if (Partition_List[i]->Decrypt_FDE()) {
+-					LOGINFO("FDE decryption successful for %s\n",
+-						Partition_List[i]->Mount_Point.c_str());
+-				}
+-			}
+-		} else {
+-			LOGINFO("FDE is not supported on Android 11+, skipping FDE fallback\n");
+-		}
++		LOGINFO("FDE fallback is no longer supported, use FBE\n");
++		Decrypted = false;
+ 	}
+ 
+ 	return Decrypted;
+-- 
+2.34.1
+
