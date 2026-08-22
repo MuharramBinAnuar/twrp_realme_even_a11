@@ -122,9 +122,29 @@ jobs:
         git config --global user.email "actions@github.com"
         if [ ! -f .repo/manifest.xml ]; then
           repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          # Override system/vold with TeamWin's TWRP fork for Android 12+ FBE decryption
+          mkdir -p .repo/local_manifests
+          cat > .repo/local_manifests/vold_fix.xml << 'MANIFEST_EOF'
+          <manifest>
+            <remote name="github" fetch="https://github.com" />
+            <remove-project name="platform/system/vold" />
+            <project path="system/vold" name="rjfahad/android_system_vold" remote="github" revision="android-12.1" />
+          </manifest>
+          MANIFEST_EOF
           repo sync -j$(nproc --all) --force-sync --no-tags
         else
           echo "Repo workspace cached, syncing..."
+          # Ensure vold override local manifest exists (for cached workspaces)
+          mkdir -p .repo/local_manifests
+          if [ ! -f .repo/local_manifests/vold_fix.xml ]; then
+            cat > .repo/local_manifests/vold_fix.xml << 'MANIFEST_EOF'
+            <manifest>
+              <remote name="github" fetch="https://github.com" />
+              <remove-project name="platform/system/vold" />
+              <project path="system/vold" name="rjfahad/android_system_vold" remote="github" revision="android-12.1" />
+            </manifest>
+            MANIFEST_EOF
+          fi
           repo sync -j$(nproc --all) --force-sync --no-tags
         fi
 
