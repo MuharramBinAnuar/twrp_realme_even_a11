@@ -155,16 +155,7 @@ jobs:
 
     - name: Fix stale ndk_platform suffix in AIDL modules
       run: |
-        sed -i 's/android\.security\.apc-ndk_platform/android.security.apc-ndk/g' bootable/recovery/Android.mk bootable/recovery/libtar/Android.mk || true
-        sed -i 's/android\.system\.keystore2-V1-ndk_platform/android.system.keystore2-V1-ndk/g' bootable/recovery/Android.mk bootable/recovery/libtar/Android.mk || true
-        sed -i 's/android\.security\.authorization-ndk_platform/android.security.authorization-ndk/g' bootable/recovery/Android.mk bootable/recovery/libtar/Android.mk || true
-        sed -i 's/android\.security\.maintenance-ndk_platform/android.security.maintenance-ndk/g' bootable/recovery/Android.mk bootable/recovery/libtar/Android.mk || true
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
-
-    - name: Patch libtar fscrypt API and FDE removal
-      run: |
-        cd bootable/recovery
-        patch -p1 < ${{ steps.pwd.outputs.workspace-folder }}/device/realme/even/patches/001-fix-libtar-fscrypt.patch
+        bash device/realme/even/patches/apply-fixes.sh
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
     - name: Building recovery
