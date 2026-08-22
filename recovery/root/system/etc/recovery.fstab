@@ -10,5 +10,5 @@ odm /odm erofs ro wait,logical,first_stage_mount,nofail
 odm /odm ext4 ro wait,logical,first_stage_mount,nofail
 
 /dev/block/by-name/md_udc      /metadata   ext4    noatime,nosuid,nodev,discard                                                                                   check,wait,formattable,first_stage_mount
-/dev/block/by-name/userdata    /data       f2fs    noatime,nosuid,nodev,discard,noflush_merge,fsync_mode=nobarrier,reserve_root=134217,resgid=1065,inlinecrypt    wait,check,formattable,quota,reservedsize=128m,latemount,fileencryption=aes-256-xts:aes-256-cts:v1,readahead_size_kb=128
+/dev/block/by-name/userdata    /data       f2fs    noatime,nosuid,nodev,discard,noflush_merge,fsync_mode=nobarrier,reserve_root=134217,resgid=1065,inlinecrypt    wait,check,formattable,quota,reservedsize=128m,latemount,fileencryption=aes-256-xts:aes-256-cts:v1,readahead_size_kb=128,checkpoint=fs,resize
 /dev/block/by-name/misc        /misc       emmc    defaults                                                                                                       defaults
