@@ -6,17 +6,17 @@ on:
       MANIFEST_URL:
         description: MANIFEST_URL
         required: true
-        default: https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp
+        default: https://github.com/rjfahad/manifest
         type: choice
         options:
         - https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp
-        - https://github.com/SHRP-Reborn/manifest
+        - https://github.com/rjfahad/manifest
         - https://github.com/PitchBlackRecoveryProject/manifest_pb
         - https://github.com/minimal-manifest-twrp/platform_manifest_twrp_lineageos
       MANIFEST_BRANCH:
         description: MANIFEST_BRANCH
         required: true
-        default: twrp-12.1
+        default: shrp-12.1
         type: choice
         options:
         - twrp-11
