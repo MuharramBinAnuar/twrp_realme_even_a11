@@ -81,33 +81,32 @@ COMPAT_EOF
 # --- Fix 3: Add compat include to libtar.h ---
 echo "Fixing libtar.h..."
 if ! grep -q 'fscrypt_policy_compat.h' bootable/recovery/libtar/libtar.h; then
-    sed -i '/#include "fscrypt_policy.h"/a #include "fscrypt_policy_compat.h"' bootable/recovery/libtar/libtar.h
+    # Add include after fscrypt_policy.h or after USE_FSCRYPT ifdef
+    if grep -q '#include "fscrypt_policy.h"' bootable/recovery/libtar/libtar.h; then
+        sed -i '/#include "fscrypt_policy.h"/a #include "fscrypt_policy_compat.h"' bootable/recovery/libtar/libtar.h
+    else
+        sed -i '/#ifdef USE_FSCRYPT/a #include "fscrypt_policy_compat.h"' bootable/recovery/libtar/libtar.h
+    fi
 fi
 
-# --- Fix 4: Replace fscrypt_policy types in all libtar sources ---
+# --- Fix 4: Replace bare fscrypt_policy type usage in libtar sources ---
+# Only replace standalone "fscrypt_policy" that is NOT part of "fscrypt_policy_v1", "fscrypt_policy_v2",
+# "fscrypt_policy_compat", "fscrypt_policy_get_struct", "fscrypt_policy_size", "libtar_fscrypt_policy_t"
 for f in bootable/recovery/libtar/libtar.h bootable/recovery/libtar/append.c bootable/recovery/libtar/block.c bootable/recovery/libtar/extract.c; do
-    [ -f "$f" ] && sed -i \
-        -e 's/fscrypt_policy \*fep/libtar_fscrypt_policy_t *fep/g' \
-        -e 's/fscrypt_policy \*\*fep/libtar_fscrypt_policy_t **fep/g' \
+    [ -f "$f" ] || continue
+    # Replace variable declarations and casts - be precise
+    sed -i \
+        -e 's/\bfscrypt_policy \*fep\b/libtar_fscrypt_policy_t *fep/g' \
+        -e 's/\bfscrypt_policy \*\*fep\b/libtar_fscrypt_policy_t **fep/g' \
         -e 's/(fscrypt_policy \*)/(libtar_fscrypt_policy_t *)/g' \
         -e 's/(fscrypt_policy\*)/(libtar_fscrypt_policy_t *)/g' \
-        -e 's/fscrypt_policy fscrypt_pol/libtar_fscrypt_policy_t fscrypt_pol/g' \
-        -e 's/fscrypt_policy \*policy/libtar_fscrypt_policy_t *policy/g' \
+        -e 's/\bfscrypt_policy fscrypt_pol\b/libtar_fscrypt_policy_t fscrypt_pol/g' \
         "$f"
 done
 
 # --- Fix 5: Fix lookup_ref_tar call in extract.c ---
-sed -i 's/lookup_ref_tar(t->th_buf.fep,/lookup_ref_tar(descriptor,/g' bootable/recovery/libtar/extract.c
-
-# --- Fix 6: Add libsysutils to libtar/Android.mk ---
-if ! grep -q 'libsysutils' bootable/recovery/libtar/Android.mk 2>/dev/null; then
-    sed -i '/LOCAL_SHARED_LIBRARIES/s/$/ \\/' bootable/recovery/libtar/Android.mk
-    sed -i '/LOCAL_SHARED_LIBRARIES/{n;s/$/ \\/;}' bootable/recovery/libtar/Android.mk
-fi
-
-# --- Fix 7: Add libsysutils to main Android.mk ---
-if ! grep -q 'libsysutils' bootable/recovery/Android.mk 2>/dev/null; then
-    sed -i '/LOCAL_SHARED_LIBRARIES/a\                          libsysutils \\' bootable/recovery/Android.mk
+if grep -q 'lookup_ref_tar(t->th_buf.fep' bootable/recovery/libtar/extract.c 2>/dev/null; then
+    sed -i 's/lookup_ref_tar(t->th_buf.fep,/lookup_ref_tar(descriptor,/g' bootable/recovery/libtar/extract.c
 fi
 
 echo "=== All fixes applied ==="
