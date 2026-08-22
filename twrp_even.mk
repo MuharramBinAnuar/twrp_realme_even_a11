@@ -19,7 +19,6 @@
 # Inherit from those products. Most specific first.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/gsi_keys.mk)
 
 # Inherit from our custom product configuration
 $(call inherit-product, vendor/twrp/config/common.mk)
@@ -32,12 +31,17 @@ PRODUCT_MANUFACTURER := realme
 PRODUCT_SHIPPING_API_LEVEL := 30
 TW_DEVICE_VERSION := By rjfahad (For RealmeUI 2.0)
 
+LOCAL_PATH := device/realme/even
+
 # Dynamic
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 
+# libinit_even
+$(call soong_config_set,libinit,vendor_init_lib,//$(LOCAL_PATH):libinit_even)
+
 # fastbootd
 PRODUCT_PACKAGES += \
-    android.hardware.fastboot@1.0-impl-mock
+    fastbootd
 
 # HACK: Set vendor patch level
 PRODUCT_PROPERTY_OVERRIDES += \
