@@ -58,23 +58,10 @@ jobs:
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
 
-    - name: Cache repo sync
-      uses: actions/cache@v4
-      with:
-        path: workspace
-        key: repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-${{ hashFiles('**/twrp.dependencies') }}
-        restore-keys: |
-          repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-
-          repo-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-
-
-    - name: Cache ccache
-      uses: actions/cache@v4
-      with:
-        path: ~/.ccache
-        key: ccache-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_number }}
-        restore-keys: |
-          ccache-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ github.event.inputs.DEVICE_NAME }}-
-          ccache-${{ github.event.inputs.MANIFEST_BRANCH }}-
+    # NOTE: repo-sync cache intentionally removed.
+    # Cached workspace pins .repo/manifests to an old snapshot, so repo sync
+    # checks out stale vold/recovery revisions and ignores new commits pushed
+    # to the manifest repos. Fresh sync every run guarantees current sources.
 
     - name: Prepare the environment
       run: |
